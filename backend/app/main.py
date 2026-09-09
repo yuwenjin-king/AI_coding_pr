@@ -38,14 +38,20 @@ def _ensure_schema(engine) -> None:
         "mode": "VARCHAR(16) DEFAULT 'analysis'",
         "branch": "VARCHAR(128)",
         "workspace": "VARCHAR(512)",
-        "diff_md": "TEXT",
-        "test_summary": "TEXT",
+        "diff_md": "MEDIUMTEXT",
+        "test_summary": "MEDIUMTEXT",
         "stats_json": "TEXT",
     }
     with engine.begin() as conn:
         for column, ddl in migrations.items():
             if column not in columns:
                 conn.execute(text(f"ALTER TABLE agent_runs ADD COLUMN {column} {ddl}"))
+
+    if engine.dialect.name == "mysql":
+        # Real multi-agent runs overflow TEXT(64KB) traces; widen to MEDIUMTEXT.
+        with engine.begin() as conn:
+            for column in ("trace_json", "report_md", "diff_md", "test_summary"):
+                conn.execute(text(f"ALTER TABLE agent_runs MODIFY COLUMN {column} MEDIUMTEXT"))
 
 
 @app.get("/api/health")

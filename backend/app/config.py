@@ -34,6 +34,7 @@ class Settings(BaseSettings):
     # LLM resilience (Phase 6)
     llm_max_retries: int = 2
     llm_retry_base_seconds: float = 1.0
+    llm_timeout: float = Field(default=120.0, validation_alias=AliasChoices("LLM_TIMEOUT"))
 
     # Guardrail (Phase 6)
     agent_max_diff_lines: int = 1000

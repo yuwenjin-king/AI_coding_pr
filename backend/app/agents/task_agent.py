@@ -94,7 +94,16 @@ CODING_SYSTEM_PROMPT = """你是 CodePilot Coding Agent，在隔离的 git workt
 """
 
 
-def run_task_agent(db: Session, run_id: int, *, mode: str = "analysis", extra_context: str | None = None) -> None:
+def run_task_agent(
+    db: Session,
+    run_id: int,
+    *,
+    mode: str = "analysis",
+    extra_context: str | None = None,
+    settle_status: bool = True,
+) -> None:
+    """settle_status=False keeps the caller (e.g. the review rework round) in
+    charge of the run's final status instead of flashing `succeeded` mid-pipeline."""
     run = db.get(AgentRun, run_id)
     if not run:
         return
@@ -123,9 +132,12 @@ def run_task_agent(db: Session, run_id: int, *, mode: str = "analysis", extra_co
     def persist(event: dict[str, Any]) -> None:
         trace.append(event)
         apply_event(stats, event)
-        run.trace_json = json.dumps(trace, ensure_ascii=False)
-        run.stats_json = json.dumps(stats)
-        db.commit()
+        try:
+            run.trace_json = json.dumps(trace, ensure_ascii=False)
+            run.stats_json = json.dumps(stats)
+            db.commit()
+        except Exception:  # noqa: BLE001 — trace persistence must never kill the run
+            db.rollback()  # keep running with the in-memory trace
 
     user = (
         f"工单 {ticket.code} ({ticket.type})\n"
@@ -159,7 +171,8 @@ def run_task_agent(db: Session, run_id: int, *, mode: str = "analysis", extra_co
             on_event=persist,
         )
         run.report_md = report
-        run.status = RunStatus.succeeded.value
+        if settle_status:
+            run.status = RunStatus.succeeded.value
         db.commit()
         if mode == "analysis":
             save_memory(db, ticket, run)  # coding runs save on HITL approve instead

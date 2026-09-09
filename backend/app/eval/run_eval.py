@@ -39,7 +39,14 @@ def _run_scenario(base_url: str, ticket_id: int, poll_seconds: float, timeout_s:
     while time.time() < deadline:
         run = _request(base_url, f"/api/runs/{run_id}")
         if run["status"] in TERMINAL:
-            return run
+            # needs_review can bounce back to running (review/rework still in
+            # flight) — only accept a terminal status once the run stops moving
+            snapshot = json.dumps(run, sort_keys=True)
+            time.sleep(max(poll_seconds, 8))
+            again = _request(base_url, f"/api/runs/{run_id}")
+            if json.dumps(again, sort_keys=True) == snapshot:
+                return again
+            run = again
         time.sleep(poll_seconds)
     return {**run, "status": "timeout"}
 
@@ -51,6 +58,10 @@ def main() -> int:
     parser.add_argument("--timeout", type=int, default=900, help="per-run seconds")
     parser.add_argument("--out", default="eval_report.json")
     parser.add_argument("--phase", type=int, default=None, help="override AGENT_PHASE check source")
+    parser.add_argument(
+        "--only", action="append", default=None,
+        help="run only these ticket codes (repeatable), e.g. --only BUG-1026",
+    )
     args = parser.parse_args()
 
     health = _request(args.base_url, "/api/health")
@@ -62,6 +73,8 @@ def main() -> int:
 
     all_results: dict[str, list] = {}
     for scenario in DEFAULT_SCENARIOS:
+        if args.only and scenario.ticket_code not in args.only:
+            continue
         if phase < scenario.min_phase:
             print(f"\n### 跳过 {scenario.ticket_code}（需要 Phase ≥ {scenario.min_phase}）")
             continue

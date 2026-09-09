@@ -155,7 +155,12 @@ def _finalize_coding_run(db: Session, run: AgentRun, ws: Workspace, ticket: Tick
         db.commit()
         return False
 
-    run.status = RunStatus.needs_review.value
+    if _multi_agent():
+        # review + possible rework still follow; observers must not treat this
+        # run as final yet, so stay "running" until _review_stage settles it
+        run.status = RunStatus.running.value
+    else:
+        run.status = RunStatus.needs_review.value
     db.commit()
     return True
 
@@ -177,6 +182,8 @@ def _review_stage(db: Session, run: AgentRun, ws: Workspace, ticket: Ticket) -> 
     db.commit()
 
     if review.get("verdict") != "request_changes":
+        run.status = RunStatus.needs_review.value
+        db.commit()
         return
 
     # Rework round: feed review comments back to the coding agent, then re-verify.
@@ -184,15 +191,16 @@ def _review_stage(db: Session, run: AgentRun, ws: Workspace, ticket: Ticket) -> 
     prev_report = run.report_md or ""
     set_current_shopai_path(ws.shopai_path)
     try:
-        run_task_agent(db, run.id, mode="coding", extra_context=feedback)
+        run_task_agent(db, run.id, mode="coding", extra_context=feedback, settle_status=False)
         db.refresh(run)
-        if run.status != RunStatus.succeeded.value:
+        if run.status == RunStatus.failed.value:
             return  # keep failure state; workspace left for inspection
         if not _finalize_coding_run(db, run, ws, ticket):
             return
     finally:
         set_current_shopai_path(None)
     run.report_md = prev_report + "\n\n---\n### 返工后\n" + (run.report_md or "")
+    run.status = RunStatus.needs_review.value
     db.commit()
 
 

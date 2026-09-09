@@ -27,6 +27,7 @@ class LLMGateway:
         self._client = OpenAI(
             api_key=settings.llm_api_key or "missing-key",
             base_url=settings.openai_base_url,
+            timeout=settings.llm_timeout,
         )
 
     def _create_with_retry(self, kwargs: dict[str, Any]):

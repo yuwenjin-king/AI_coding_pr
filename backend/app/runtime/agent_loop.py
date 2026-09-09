@@ -15,6 +15,7 @@ from app.tools import registry
 
 TOOL_OUTPUT_FOR_MODEL = 8000
 TOOL_OUTPUT_FOR_TRACE = 4000
+ARGS_FOR_TRACE = 200  # write_file echoes full file content — keep traces bounded
 
 
 class AgentLoopError(RuntimeError):
@@ -54,7 +55,7 @@ def run_agent_loop(
                     {
                         "id": tc.id,
                         "name": tc.function.name,
-                        "arguments": tc.function.arguments,
+                        "arguments": (tc.function.arguments or "")[:ARGS_FOR_TRACE],
                     }
                     for tc in tool_calls
                 ],
@@ -82,6 +83,10 @@ def run_agent_loop(
                 args_echo = json.loads(tc.function.arguments or "{}")
             except json.JSONDecodeError:
                 args_echo = {"raw": tc.function.arguments}
+            args_echo = {
+                k: v if not isinstance(v, str) or len(v) <= ARGS_FOR_TRACE else v[:ARGS_FOR_TRACE] + "…"
+                for k, v in args_echo.items()
+            }
             emit(
                 {
                     "step": step,
