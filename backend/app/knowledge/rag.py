@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import logging
 import re
+import uuid
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
@@ -19,6 +20,13 @@ logger = logging.getLogger(__name__)
 
 CHUNK_TARGET_CHARS = 700
 CHUNK_MAX_CHARS = 1200
+
+# Qdrant only accepts unsigned-int or UUID point ids; derive stable UUIDs from doc ids.
+_POINT_NAMESPACE = uuid.uuid5(uuid.NAMESPACE_URL, "codepilot/rag")
+
+
+def _point_id(raw: str) -> str:
+    return str(uuid.uuid5(_POINT_NAMESPACE, raw))
 
 
 @dataclass
@@ -127,7 +135,7 @@ class RagStore:
 
         points = [
             PointStruct(
-                id=doc.id,
+                id=_point_id(doc.id),
                 vector=vec,
                 payload={
                     "source": doc.source,
