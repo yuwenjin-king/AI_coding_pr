@@ -13,6 +13,77 @@ from app.database import Base
 
 REAL_SHOPAI = Path(__file__).resolve().parents[2] / "playground" / "shopai"
 
+# The playground's BUG-1024 defect is FIXED on main (agent fix merged via HITL),
+# but coding-run fixtures need the bug present so scripted fixes produce a diff.
+# This is the original defective consumer restored from git history (7d64048).
+BUGGY_CONSUMER = '''"""In-process Kafka-like payment event consumer.
+
+BUG-1024:
+Payment gateway may fail the first delivery after charging the user.
+The broker redelivers the PaymentSucceeded event. This consumer treats
+*any* redelivery as a duplicate and returns early — so the order stays
+pending even though money was taken.
+
+This surfaces as ~1% of orders in production (first-attempt processing
+errors + retry).
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+from app.order_service import store
+
+
+@dataclass
+class PaymentSucceeded:
+    event_id: str
+    order_id: str
+    redelivered: bool = False
+
+
+class PaymentConsumer:
+    def handle(self, event: PaymentSucceeded) -> None:
+        # Incorrect idempotency: skip all retries instead of making
+        # mark_paid idempotent and always applying the state transition.
+        if event.redelivered:
+            return
+        order = store.get(event.order_id)
+        if order is None:
+            return
+        store.mark_paid(event.order_id)
+
+
+consumer = PaymentConsumer()
+'''
+
+# Original pre-fix test file (xfail marker present) — pairs with BUGGY_CONSUMER.
+BUGGY_TESTS = '''import pytest
+
+from app.order_service import store
+from app.payment_consumer import PaymentSucceeded, consumer
+
+
+@pytest.fixture(autouse=True)
+def _reset_store():
+    store.clear()
+    yield
+    store.clear()
+
+
+def test_happy_path_marks_paid():
+    store.create("o1")
+    consumer.handle(PaymentSucceeded(event_id="e1", order_id="o1", redelivered=False))
+    assert store.get("o1").status == "PAID"
+
+
+@pytest.mark.xfail(reason="BUG-1024: redelivery skips mark_paid", strict=True)
+def test_redelivery_should_still_mark_paid():
+    store.create("o2")
+    consumer.handle(PaymentSucceeded(event_id="e2", order_id="o2", redelivered=True))
+    assert store.get("o2").status == "PAID"
+'''
+
 
 @pytest.fixture()
 def db_engine():
@@ -74,6 +145,14 @@ def tmp_repo(tmp_path, monkeypatch):
         dst = shopai / src.relative_to(REAL_SHOPAI)
         dst.parent.mkdir(parents=True, exist_ok=True)
         dst.write_text(src.read_text(encoding="utf-8"))
+    # Pin the playground to its pre-E2E state: BUG-1024 unfixed, and only the
+    # original test file present — later agent merges (cancel-order, inventory
+    # tests) assume fixes these scripted runs never make.
+    (shopai / "app" / "payment_consumer.py").write_text(BUGGY_CONSUMER, encoding="utf-8")
+    (shopai / "tests" / "test_payment_status.py").write_text(BUGGY_TESTS, encoding="utf-8")
+    for extra in (shopai / "tests").glob("test_*.py"):
+        if extra.name != "test_payment_status.py":
+            extra.unlink()
     _run_git(["git", "init", "-b", "main"], repo)
     _run_git(["git", "add", "-A"], repo)
     _run_git(["git", "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-m", "init"], repo)
