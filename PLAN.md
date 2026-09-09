@@ -11,7 +11,7 @@
 | Phase 2 | Tool Agent | git/run_test 真实工具、通用 Agent Loop、SSE 实时观测 | 🟡 代码完成，待真实 key 端到端 |
 | Phase 3 | RAG Agent | Qdrant + Embedding、历史工单/文档检索进入上下文 | 🟡 代码完成，待真实 key 入库与端到端 |
 | Phase 4 | Coding Agent | 分支上真实改代码、测试迭代收敛、Diff + HITL 审批 | 🟡 代码完成（31 测试全绿），待真实 key 端到端 |
-| Phase 5 | Multi-Agent | Orchestrator 调度 Requirement/Coding/Test/Review | ⬜ 计划 |
+| Phase 5 | Multi-Agent | Requirement/Review Agent 编排 + 返工循环 | 🟡 代码完成（36 测试全绿），待真实 key 端到端 |
 | Phase 6 | 平台化 | Memory、可观测性、评估、部署治理 | ⬜ 计划 |
 
 ## 环境事实（随时更新）
@@ -110,24 +110,25 @@ Agent 在独立分支上真实修改代码：改 → 测 → 失败分析 → �
 
 ---
 
-## Phase 5：Multi-Agent（计划）
+## Phase 5：Multi-Agent（代码完成，待端到端）
 
 ### 目标
 
-单 Agent 上下文扛不住时拆角色：Orchestrator 调度 Requirement / Knowledge / Coding / Test / Review。
+单 Agent 上下文扛不住时拆角色：Orchestrator 调度 Requirement / Coding / Test / Review。
 
 ### 任务
 
-- [ ] Orchestrator 从「直通 Task Agent」改为按计划调度子 Agent
-- [ ] Requirement Agent：需求拆解 + 验收标准（REQ-1025 场景）
-- [ ] Coding / Test / Review Agent 分工与消息传递（共享 run 上下文）
-- [ ] REQ-1025 全流程：分析 → 设计 API → 改代码（订单状态机 + 库存恢复）→ 测试 → Review
-- [ ] 角色间产物结构化传递（需求文档 → 编码指令 → 测试报告 → Review 意见）
+- [x] Orchestrator 按工单类型编排：BUG → Coding(+Review)；REQ → Requirement → Coding(+Review)；phase<5 回退单 Agent
+- [x] Requirement Agent：需求拆解 JSON 契约（理解/验收标准/模块/风险/测试计划），产出注入 Coding 提示词并保留在报告顶部
+- [x] Review Agent：审查 diff+测试输出（blocker/major/minor 分级），`request_changes` 驱动**恰好一轮**返工（意见回灌 Coding Agent，返工后重测；人工是最终门）
+- [x] 角色产物结构化传递 + trace 记录 `agent` 事件（前端可展开查看）
+- [x] trace 跨轮续写（rework 不清空前序事件）
+- [x] 测试：需求/审查 JSON 契约（含 ```json 围栏容错）、REQ 全流水线含返工、BUG 直通 Review 不返工
 
 ### 验收标准
 
-1. REQ-1025 跑通多 Agent 协作，各角色产物在 trace 中可见。
-2. Review Agent 能对 Coding Agent 的 diff 提出具体意见（并驱动返工至少一轮）。
+1. ⏳ REQ-1025 真实跑通多 Agent 协作 —— FakeLLM 版已验证，待真实 key E2E。
+2. ⏳ Review Agent 对真实 diff 提出具体意见并驱动返工 —— 同上。
 
 ---
 

@@ -92,7 +92,7 @@ CODING_SYSTEM_PROMPT = """你是 CodePilot Coding Agent，在隔离的 git workt
 """
 
 
-def run_task_agent(db: Session, run_id: int, *, mode: str = "analysis") -> None:
+def run_task_agent(db: Session, run_id: int, *, mode: str = "analysis", extra_context: str | None = None) -> None:
     run = db.get(AgentRun, run_id)
     if not run:
         return
@@ -110,6 +110,11 @@ def run_task_agent(db: Session, run_id: int, *, mode: str = "analysis") -> None:
     max_steps = settings.agent_max_steps + 12 if mode == "coding" else settings.agent_max_steps
     run.plan_json = json.dumps(plan, ensure_ascii=False)
     trace: list[dict[str, Any]] = []
+    if run.trace_json:  # multi-agent stages / rework rounds append, never clobber
+        try:
+            trace = json.loads(run.trace_json)
+        except json.JSONDecodeError:
+            trace = []
     db.commit()
 
     def persist(event: dict[str, Any]) -> None:
@@ -126,6 +131,8 @@ def run_task_agent(db: Session, run_id: int, *, mode: str = "analysis") -> None:
     knowledge = _knowledge_context(ticket)
     if knowledge:
         user += f"\n{knowledge}\n"
+    if extra_context:
+        user += f"\n{extra_context}\n"
     if mode == "coding":
         user += "\n请在隔离工作区完成修复并让测试全绿。"
     else:

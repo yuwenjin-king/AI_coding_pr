@@ -213,7 +213,16 @@ export default function TicketDetail() {
           <ol className="trace">
             {trace.map((ev, i) => (
               <li key={i} className={`trace-item ${ev.type}`}>
-                {ev.type === "llm" ? (
+                {ev.type === "agent" ? (
+                  <details>
+                    <summary>
+                      <span className="tag tag-agent">AGENT</span>{" "}
+                      <code>{String(ev.name)}</code>{" "}
+                      <span className="muted">子 Agent 阶段产出</span>
+                    </summary>
+                    <pre className="observation">{ev.output || "(empty)"}</pre>
+                  </details>
+                ) : ev.type === "llm" ? (
                   <>
                     <span className="tag tag-llm">LLM</span>
                     <span className="muted"> step {String(ev.step)} · </span>

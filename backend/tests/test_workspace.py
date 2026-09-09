@@ -1,12 +1,9 @@
 """Phase 4: workspace isolation, write_file gating, coding run lifecycle, HITL."""
 
 import json
-import subprocess
 from pathlib import Path
 
-import pytest
-
-from app.models import AgentRun, Project, Ticket
+from app.models import AgentRun
 from app.runtime import RunStatus
 from tests.fakes import FakeGateway, fake_message, fake_tool_call
 
@@ -14,55 +11,11 @@ REAL_SHOPAI = Path(__file__).resolve().parents[2] / "playground" / "shopai"
 
 
 def _run(cmd, cwd):
+    import subprocess
+
     proc = subprocess.run(cmd, cwd=str(cwd), capture_output=True, text=True)
     assert proc.returncode == 0, proc.stderr
     return proc.stdout
-
-
-@pytest.fixture()
-def tmp_repo(tmp_path, monkeypatch):
-    """A throwaway git repo that mirrors playground/shopai, isolated from the user's repo."""
-    repo = tmp_path / "project"
-    shopai = repo / "playground" / "shopai"
-    shopai.mkdir(parents=True)
-    for src in REAL_SHOPAI.rglob("*"):
-        if not src.is_file():
-            continue
-        if any(part in {".pytest_cache", "__pycache__"} or part.startswith(".") for part in src.parts):
-            continue
-        dst = shopai / src.relative_to(REAL_SHOPAI)
-        dst.parent.mkdir(parents=True, exist_ok=True)
-        dst.write_text(src.read_text(encoding="utf-8"))
-    _run(["git", "init", "-b", "main"], repo)
-    _run(["git", "add", "-A"], repo)
-    _run(["git", "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-m", "init"], repo)
-    _run(["git", "config", "user.email", "t@t"], repo)
-    _run(["git", "config", "user.name", "t"], repo)
-
-    monkeypatch.setattr("app.config.settings.shopai_root", str(shopai))
-    monkeypatch.setattr("app.config.settings.agent_workspace_root", str(tmp_path / "ws"))
-    yield repo
-    subprocess.run(
-        ["git", "worktree", "prune"], cwd=str(repo), capture_output=True, text=True
-    )
-
-
-@pytest.fixture()
-def bug_ticket(db_session):
-    project = Project(name="P-ws", repo_path="x")
-    db_session.add(project)
-    db_session.flush()
-    ticket = Ticket(
-        project_id=project.id,
-        code="BUG-9001",
-        type="BUG",
-        title="fix me",
-        description="重复投递未标记 PAID",
-        status="open",
-    )
-    db_session.add(ticket)
-    db_session.commit()
-    return ticket
 
 
 FIXED_CONSUMER = '''from dataclasses import dataclass
@@ -90,9 +43,10 @@ consumer = PaymentConsumer()
 '''
 
 
-def _coding_gateway():
-    """Scripted agent: fix the consumer, drop the xfail marker, then report."""
-    return FakeGateway([
+def _coding_gateway(rounds: int = 1):
+    """Scripted agent: fix the consumer, drop the xfail marker, then report.
+    `rounds>1` appends a lighter rework script (files already fixed)."""
+    responses = [
         fake_message(None, [fake_tool_call("c1", "read_file", '{"path": "app/payment_consumer.py"}')]),
         fake_message(None, [fake_tool_call(
             "c2", "write_file",
@@ -124,7 +78,13 @@ def _coding_gateway():
         )]),
         fake_message(None, [fake_tool_call("c4", "run_test", "{}")]),
         fake_message("# Root Cause\n重投递被当重复消费\nAI Confidence: 90"),
-    ])
+    ]
+    for r in range(2, rounds + 1):
+        responses.extend([
+            fake_message(None, [fake_tool_call(f"r{r}-t", "run_test", "{}")]),
+            fake_message("# 返工完成\n已处理 Review 意见\nAI Confidence: 92"),
+        ])
+    return FakeGateway(responses)
 
 
 def test_write_file_gated_and_scoped(tmp_repo, monkeypatch):
