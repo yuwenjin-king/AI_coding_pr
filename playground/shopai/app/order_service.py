@@ -3,6 +3,7 @@
 States: pending -> PAID | cancelled
 """
 
+import threading
 from dataclasses import dataclass, field
 
 
@@ -25,23 +26,30 @@ class InventoryStore:
 
     def __init__(self) -> None:
         self._stock: dict[str, int] = {}
+        self._lock = threading.Lock()
 
     def set_stock(self, product_id: str, quantity: int) -> None:
         self._stock[product_id] = quantity
 
     def reserve(self, product_id: str, quantity: int) -> bool:
-        current = self._stock.get(product_id, 0)
-        if current < quantity:
-            return False
-        self._stock[product_id] = current - quantity
-        return True
+        with self._lock:
+            current = self._stock.get(product_id, 0)
+            if current < quantity:
+                return False
+            self._stock[product_id] = current - quantity
+            return True
 
     def restore(self, product_id: str, quantity: int) -> None:
-        current = self._stock.get(product_id, 0)
-        self._stock[product_id] = current + quantity
+        with self._lock:
+            current = self._stock.get(product_id, 0)
+            self._stock[product_id] = current + quantity
 
     def clear(self) -> None:
-        self._stock.clear()
+        self._lock.acquire()
+        try:
+            self._stock.clear()
+        finally:
+            self._lock.release()
 
 
 class OrderStore:
