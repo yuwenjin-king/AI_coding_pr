@@ -30,6 +30,17 @@ def get_order(order_id: str):
     return order
 
 
+@app.post("/orders/{order_id}/cancel")
+def cancel_order(order_id: str):
+    """Cancel an order. Only pending orders can be cancelled."""
+    try:
+        return store.cancel_order(order_id)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    except KeyError:
+        raise HTTPException(404, "order not found")
+
+
 @app.post("/payments/callback")
 def payment_callback(body: PayBody):
     """Payment gateway webhook. Publishes PaymentSucceeded to the consumer."""
