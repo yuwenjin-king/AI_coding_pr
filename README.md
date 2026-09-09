@@ -1,6 +1,6 @@
 # AI 软件研发 Agent：从工单到上线
 
-当前实现：**Phase 2** Tool Agent —— 工单工作台 + 只读分析，新增 `git_status/git_diff/git_log`、`run_test`（真实执行靶场 pytest）、通用 Agent Loop 与 SSE 实时观测。靶场仓库为 `playground/shopai`。开发计划与各阶段进度见 [PLAN.md](PLAN.md)。
+当前实现：**Phase 5 Multi-Agent + Phase 6 平台化核心** —— 工单工作台、ReAct Agent Loop（SSE 实时观测）、RAG 知识检索、Coding Agent（git worktree 隔离改码 + 测试收敛 + Diff 审批合并）、Requirement/Review 多 Agent 编排与返工；平台侧已有 Memory 经验沉淀、run 级 token/耗时统计、LLM 重试与 Guardrail（密钥扫描 / diff 上限）。靶场仓库为 `playground/shopai`。开发计划与各阶段进度见 [PLAN.md](PLAN.md)。
 
 ## 本地运行
 

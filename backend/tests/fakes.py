@@ -17,9 +17,10 @@ def fake_message(content=None, tool_calls=None):
 class FakeGateway:
     """Returns queued responses in order; records every request."""
 
-    def __init__(self, responses):
+    def __init__(self, responses, usage: dict | None = None):
         self.responses = list(responses)
         self.requests = []
+        self.usage = usage
 
     def chat(self, messages, tools=None, tool_choice=None):
         self.requests.append(
@@ -27,4 +28,7 @@ class FakeGateway:
         )
         if not self.responses:
             raise AssertionError("FakeGateway exhausted")
-        return self.responses.pop(0), {"model": "fake", "latency_ms": 1, "usage": None}
+        return (
+            self.responses.pop(0),
+            {"model": "fake", "latency_ms": 1, "usage": dict(self.usage) if self.usage else None},
+        )

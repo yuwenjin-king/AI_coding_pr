@@ -40,6 +40,7 @@ def _ensure_schema(engine) -> None:
         "workspace": "VARCHAR(512)",
         "diff_md": "TEXT",
         "test_summary": "TEXT",
+        "stats_json": "TEXT",
     }
     with engine.begin() as conn:
         for column, ddl in migrations.items():

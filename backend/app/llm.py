@@ -3,12 +3,20 @@ from __future__ import annotations
 import time
 from typing import Any
 
+import openai
 from openai import OpenAI
 
 from app.config import settings
 
 # DashScope compatible-mode caps /embeddings at 10 inputs per request.
 EMBED_BATCH_SIZE = 10
+
+# Transient transport/provider conditions worth retrying with backoff.
+RETRYABLE_ERRORS = (
+    openai.APIConnectionError,  # includes APITimeoutError
+    openai.RateLimitError,
+    openai.InternalServerError,
+)
 
 
 class LLMGateway:
@@ -20,6 +28,19 @@ class LLMGateway:
             api_key=settings.llm_api_key or "missing-key",
             base_url=settings.openai_base_url,
         )
+
+    def _create_with_retry(self, kwargs: dict[str, Any]):
+        """Call chat.completions.create, retrying transient errors with backoff.
+
+        Auth/validation errors (401/400 …) are not transient — they surface immediately.
+        """
+        for attempt in range(settings.llm_max_retries + 1):
+            try:
+                return self._client.chat.completions.create(**kwargs)
+            except RETRYABLE_ERRORS:
+                if attempt >= settings.llm_max_retries:
+                    raise
+                time.sleep(settings.llm_retry_base_seconds * (2**attempt))
 
     def chat(
         self,
@@ -37,7 +58,7 @@ class LLMGateway:
             kwargs["tools"] = tools
             if tool_choice is not None:
                 kwargs["tool_choice"] = tool_choice
-        resp = self._client.chat.completions.create(**kwargs)
+        resp = self._create_with_retry(kwargs)
         meta = {
             "model": self.model,
             "latency_ms": int((time.perf_counter() - started) * 1000),

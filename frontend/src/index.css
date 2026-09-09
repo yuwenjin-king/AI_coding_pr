@@ -59,6 +59,7 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 }
 .panel { margin-top: 24px; }
 .error { color: #b91c1c; }
+.stats-row { font-size: 12px; }
 .actions { display: flex; gap: 8px; margin-top: 16px; }
 .actions button { background: #475569; }
 .trace {

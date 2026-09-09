@@ -129,6 +129,24 @@ export default function TicketDetail() {
     }
   }, [run?.trace_json]);
 
+  const stats = useMemo(() => {
+    if (!run?.stats_json) return null;
+    try {
+      return JSON.parse(run.stats_json) as Partial<{
+        llm_calls: number;
+        prompt_tokens: number;
+        completion_tokens: number;
+        llm_latency_ms: number;
+        tool_calls: number;
+        tool_failures: number;
+        tool_blocked: number;
+        steps: number;
+      }>;
+    } catch {
+      return null;
+    }
+  }, [run?.stats_json]);
+
   const suggestedFiles = useMemo(() => {
     const text = run?.report_md || "";
     const matches = text.match(/[\w./-]+\.py/g) || [];
@@ -164,6 +182,14 @@ export default function TicketDetail() {
             <span className={`status status-${run.status}`}>{run.status}</span>
             {active && <span className="live-dot" title="实时事件流已连接" />}
           </h2>
+          {stats && (
+            <p className="muted stats-row">
+              📊 LLM 调用 {stats.llm_calls ?? 0} · tokens {stats.prompt_tokens ?? 0}↑ {stats.completion_tokens ?? 0}↓ ·
+              LLM 耗时 {((stats.llm_latency_ms ?? 0) / 1000).toFixed(1)}s · 工具调用 {stats.tool_calls ?? 0}
+              {(stats.tool_failures ?? 0) > 0 && `（失败 ${stats.tool_failures}）`}
+              {(stats.tool_blocked ?? 0) > 0 && `（拦截 ${stats.tool_blocked}）`} · 步数 {stats.steps ?? 0}
+            </p>
+          )}
           {plan.length > 0 && (
             <>
               <h3>Plan</h3>

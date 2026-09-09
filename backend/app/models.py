@@ -47,6 +47,7 @@ class AgentRun(Base):
     workspace: Mapped[str | None] = mapped_column(String(512), nullable=True)
     diff_md: Mapped[str | None] = mapped_column(Text, nullable=True)
     test_summary: Mapped[str | None] = mapped_column(Text, nullable=True)
+    stats_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
@@ -54,3 +55,16 @@ class AgentRun(Base):
     )
 
     ticket: Mapped[Ticket] = relationship(back_populates="runs")
+
+
+class AgentMemory(Base):
+    """Cross-run experience distilled from finished runs (Phase 6 Memory)."""
+
+    __tablename__ = "agent_memories"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id"), index=True)
+    ticket_code: Mapped[str] = mapped_column(String(32))
+    title: Mapped[str] = mapped_column(String(255))
+    lesson_md: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())

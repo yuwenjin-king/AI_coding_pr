@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from app.config import settings
+from app.runtime.guardrail import scan_secrets
 from app.runtime.workspace import current_shopai_path
 from app.tools.registry import ToolResult, registry
 
@@ -97,6 +98,14 @@ def _tool_write_file(args: dict) -> ToolResult:
         return ToolResult("write_file", False, f"suffix not allowed: {path.suffix or '(none)'}")
     if len(content.encode("utf-8")) > WRITE_MAX_BYTES:
         return ToolResult("write_file", False, f"content too large (> {WRITE_MAX_BYTES} bytes)")
+    secrets = scan_secrets(content)
+    if secrets:
+        return ToolResult(
+            "write_file",
+            False,
+            "guardrail: 内容疑似包含密钥，已拒绝写入: " + "; ".join(secrets),
+            blocked=True,
+        )
     if not path.exists() and rel.startswith("/"):
         return ToolResult("write_file", False, "use a relative path")
     path.parent.mkdir(parents=True, exist_ok=True)

@@ -38,6 +38,7 @@ class AgentRunOut(BaseModel):
     workspace: str | None = None
     diff_md: str | None = None
     test_summary: str | None = None
+    stats_json: str | None = None
     error: str | None = None
     created_at: datetime
     updated_at: datetime | None = None

@@ -31,6 +31,17 @@ class Settings(BaseSettings):
     sse_poll_seconds: float = 1.0
     project_root: str = str(ROOT)
 
+    # LLM resilience (Phase 6)
+    llm_max_retries: int = 2
+    llm_retry_base_seconds: float = 1.0
+
+    # Guardrail (Phase 6)
+    agent_max_diff_lines: int = 1000
+
+    # Memory (Phase 6)
+    memory_enabled: bool = True
+    memory_inject_limit: int = 3
+
     # RAG (Phase 3)
     qdrant_url: str = "http://127.0.0.1:6333"
     qdrant_collection: str = "codepilot_knowledge"

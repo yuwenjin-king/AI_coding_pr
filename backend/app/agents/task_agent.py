@@ -6,10 +6,12 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from app.config import settings
+from app.knowledge.memory import memory_context, save_memory
 from app.llm import gateway
 from app.models import AgentRun, Ticket
 from app.runtime import RunStatus
 from app.runtime.agent_loop import run_agent_loop
+from app.runtime.stats import apply_event, stats_from_trace
 from app.tools import registry
 
 
@@ -115,11 +117,14 @@ def run_task_agent(db: Session, run_id: int, *, mode: str = "analysis", extra_co
             trace = json.loads(run.trace_json)
         except json.JSONDecodeError:
             trace = []
+    stats = stats_from_trace(trace)
     db.commit()
 
     def persist(event: dict[str, Any]) -> None:
         trace.append(event)
+        apply_event(stats, event)
         run.trace_json = json.dumps(trace, ensure_ascii=False)
+        run.stats_json = json.dumps(stats)
         db.commit()
 
     user = (
@@ -131,6 +136,9 @@ def run_task_agent(db: Session, run_id: int, *, mode: str = "analysis", extra_co
     knowledge = _knowledge_context(ticket)
     if knowledge:
         user += f"\n{knowledge}\n"
+    memories = memory_context(db, ticket)
+    if memories:
+        user += f"\n{memories}\n"
     if extra_context:
         user += f"\n{extra_context}\n"
     if mode == "coding":
@@ -153,6 +161,8 @@ def run_task_agent(db: Session, run_id: int, *, mode: str = "analysis", extra_co
         run.report_md = report
         run.status = RunStatus.succeeded.value
         db.commit()
+        if mode == "analysis":
+            save_memory(db, ticket, run)  # coding runs save on HITL approve instead
     except Exception as exc:  # noqa: BLE001 — persist agent failure
         run.status = RunStatus.failed.value
         run.error = str(exc)

@@ -16,8 +16,10 @@ from app.agents.requirement_agent import requirement_markdown, run_requirement_a
 from app.agents.review_agent import review_markdown, run_review_agent
 from app.agents.task_agent import run_task_agent
 from app.config import settings
+from app.knowledge.memory import save_memory
 from app.models import AgentRun, Ticket
 from app.runtime import RunStatus
+from app.runtime.guardrail import diff_change_lines
 from app.runtime.workspace import Workspace, WorkspaceError, set_current_shopai_path
 
 logger = logging.getLogger(__name__)
@@ -133,6 +135,18 @@ def _finalize_coding_run(db: Session, run: AgentRun, ws: Workspace, ticket: Tick
         db.commit()
         return False
 
+    changed_lines = diff_change_lines(diff)
+    if changed_lines > settings.agent_max_diff_lines:
+        run.status = RunStatus.failed.value
+        run.error = (
+            f"guardrail: diff {changed_lines} 行超过上限 {settings.agent_max_diff_lines}，"
+            "疑似大范围重写；工作区已丢弃，请缩小修改范围后重试"
+        )
+        ws.remove()
+        run.workspace = None
+        db.commit()
+        return False
+
     if not test.ok:
         run.status = RunStatus.failed.value
         run.error = f"tests still failing after fix:\n{test.output[-2000:]}"
@@ -199,6 +213,7 @@ def approve_run(db: Session, run: AgentRun) -> tuple[bool, str]:
     run.status = RunStatus.succeeded.value
     if ticket:
         ticket.status = "resolved"
+        save_memory(db, ticket, run)  # human-validated fix becomes reusable experience
     run.workspace = None
     db.commit()
     return True, f"merged {run.branch} into main"

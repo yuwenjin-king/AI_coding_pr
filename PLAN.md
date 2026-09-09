@@ -12,7 +12,7 @@
 | Phase 3 | RAG Agent | Qdrant + Embedding、历史工单/文档检索进入上下文 | 🟡 代码完成，待真实 key 入库与端到端 |
 | Phase 4 | Coding Agent | 分支上真实改代码、测试迭代收敛、Diff + HITL 审批 | 🟡 代码完成（31 测试全绿），待真实 key 端到端 |
 | Phase 5 | Multi-Agent | Requirement/Review Agent 编排 + 返工循环 | 🟡 代码完成（36 测试全绿），待真实 key 端到端 |
-| Phase 6 | 平台化 | Memory、可观测性、评估、部署治理 | ⬜ 计划 |
+| Phase 6 | 平台化 | Memory、可观测性、Guardrail、LLM 重试已交付；评估/断点恢复/部署治理计划中 | 🟡 核心四件套完成（49 测试全绿），待端到端 |
 
 ## 环境事实（随时更新）
 
@@ -132,7 +132,7 @@ Agent 在独立分支上真实修改代码：改 → 测 → 失败分析 → �
 
 ---
 
-## Phase 6：平台化（计划）
+## Phase 6：平台化（核心四件套完成，待端到端）
 
 ### 目标
 
@@ -140,19 +140,20 @@ Agent 在独立分支上真实修改代码：改 → 测 → 失败分析 → �
 
 ### 任务（按优先级，可裁剪）
 
-- [ ] Memory：run 结束后沉淀经验（项目结构认知、Bug→方案索引），跨 run 复用
-- [ ] 可观测：run 级 token/耗时统计、成本看板
+- [x] Memory：run 成功后沉淀经验（分析 run 完成即沉淀；coding run 以 HITL 批准为准），新工单启动时召回 top-3 注入上下文（关键词重叠 + 新近度排序，`MEMORY_ENABLED` 可关）
+- [x] 可观测：run 级 token/耗时/工具统计（`agent_runs.stats_json`，随 trace 实时更新），前端运行页统计行（LLM 调用 / tokens↑↓ / LLM 耗时 / 工具调用 / 步数）
+- [x] Retry：LLM 瞬时错误（连接/超时/429/5xx）指数退避重试（`LLM_MAX_RETRIES`、`LLM_RETRY_BASE_SECONDS`），鉴权/参数错误不重试快速失败
+- [x] Guardrail：write_file 密钥扫描（sk-/AKIA/私钥/ghp_/xox 命中即拦截）、diff 变更行数上限（`AGENT_MAX_DIFF_LINES`，超限 run 失败并丢弃工作区）
 - [ ] Evaluation：固定工单集的回归评测（定位准确率、修复通过率）
-- [ ] Retry/Checkpoint：LLM 超时重试、run 断点恢复
-- [ ] Guardrail：危险操作黑名单、diff 尺寸限制、密钥扫描
+- [ ] Checkpoint：run 断点恢复
 - [ ] Deploy：HITL 批准后触发（本地 compose 模拟 CI/CD）
 - [ ] Agent Hub：Agent 定义注册/版本化（6 个内置 + 自定义）
 
 ### 验收标准
 
-1. 同类工单第二次运行明显少于第一次的探索步数（Memory 生效）。
-2. 评测报告可对比两个版本 Agent 的成功率。
-3. 全链路：工单 → 分析 → 检索 → 修复 → 测试 → Review → 审批 → 部署 → 回写工单状态。
+1. ⏳ 同类工单第二次运行明显少于第一次的探索步数（Memory 生效）—— FakeLLM 版已验证召回注入，真实效果待 E2E。
+2. ⬜ 评测报告可对比两个版本 Agent 的成功率。
+3. ⬜ 全链路：工单 → 分析 → 检索 → 修复 → 测试 → Review → 审批 → 部署 → 回写工单状态。
 
 ---
 

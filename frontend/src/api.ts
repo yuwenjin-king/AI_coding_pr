@@ -21,6 +21,7 @@ export type AgentRun = {
   workspace: string | null;
   diff_md: string | null;
   test_summary: string | null;
+  stats_json: string | null;
   error: string | null;
   created_at: string;
   updated_at: string | null;
