@@ -18,8 +18,9 @@
 
 - MySQL：`docker compose up -d mysql`（已运行）。
 - 后端 `uvicorn app.main:app --reload --port 8000`，前端 `npm run dev`（5173）。
-- **`.env` 的 `OPENAI_API_KEY` 目前仍是占位符**：LLM 端到端流程会失败，但单测使用 FakeLLM 不受影响。
-- 靶场仓库 `playground/shopai` 是独立 git 仓库（Phase 4 做 clone/branch/commit 的基础）。
+- LLM：`.env` 已配置真实 key（`LLM_API_KEY`，qwen3.7-flash @ 阿里云 MaaS 专用端点），RAG 入库完成（Qdrant 5 chunks）。
+- **`playground/shopai` 不是独立 git 仓库**，是主仓库的普通目录：worktree/分支/HITL 合并都发生在主仓库上（2026-09-09 实测，agent 分支 `agent/BUG-1024-run2` 已合并，BUG-1024 修复已进 main）。
+- **注意**：BUG-1024 的缺陷已在 main 修复（xfail 已移除、测试 3 passed），重跑该场景会因「无变更」而失败，属预期。
 
 ---
 
