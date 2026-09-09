@@ -144,7 +144,7 @@ Agent 在独立分支上真实修改代码：改 → 测 → 失败分析 → �
 - [x] 可观测：run 级 token/耗时/工具统计（`agent_runs.stats_json`，随 trace 实时更新），前端运行页统计行（LLM 调用 / tokens↑↓ / LLM 耗时 / 工具调用 / 步数）
 - [x] Retry：LLM 瞬时错误（连接/超时/429/5xx）指数退避重试（`LLM_MAX_RETRIES`、`LLM_RETRY_BASE_SECONDS`），鉴权/参数错误不重试快速失败
 - [x] Guardrail：write_file 密钥扫描（sk-/AKIA/私钥/ghp_/xox 命中即拦截）、diff 变更行数上限（`AGENT_MAX_DIFF_LINES`，超限 run 失败并丢弃工作区）
-- [ ] Evaluation：固定工单集的回归评测（定位准确率、修复通过率）
+- [x] Evaluation：固定工单集回归评测框架（`python -m app.eval.run_eval`：BUG-1024 修复闭环 / BUG-1026 RAG 引用 / REQ-1025 多 Agent，逐项检查输出 Markdown + JSON 报告；评分器纯逻辑单测覆盖）—— 真实模型跑分待 E2E
 - [ ] Checkpoint：run 断点恢复
 - [ ] Deploy：HITL 批准后触发（本地 compose 模拟 CI/CD）
 - [ ] Agent Hub：Agent 定义注册/版本化（6 个内置 + 自定义）
