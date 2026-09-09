@@ -8,11 +8,11 @@
 | Phase | 主题 | 核心能力 | 状态 |
 | --- | --- | --- | --- |
 | Phase 1 | 单 Agent 分析 | 工单工作台 + 只读工具 + 分析报告（不改代码） | ✅ 已完成 |
-| Phase 2 | Tool Agent | git/run_test 真实工具、通用 Agent Loop、SSE 实时观测 | 🟡 代码完成，待真实 key 端到端 |
-| Phase 3 | RAG Agent | Qdrant + Embedding、历史工单/文档检索进入上下文 | 🟡 代码完成，待真实 key 入库与端到端 |
-| Phase 4 | Coding Agent | 分支上真实改代码、测试迭代收敛、Diff + HITL 审批 | 🟡 代码完成（31 测试全绿），待真实 key 端到端 |
-| Phase 5 | Multi-Agent | Requirement/Review Agent 编排 + 返工循环 | 🟡 代码完成（36 测试全绿），待真实 key 端到端 |
-| Phase 6 | 平台化 | Memory、可观测性、Guardrail、LLM 重试已交付；评估/断点恢复/部署治理计划中 | 🟡 核心四件套完成（49 测试全绿），待端到端 |
+| Phase 2 | Tool Agent | git/run_test 真实工具、通用 Agent Loop、SSE 实时观测 | ✅ E2E 验证通过（2026-09-09） |
+| Phase 3 | RAG Agent | Qdrant + Embedding、历史工单/文档检索进入上下文 | 🟡 入库/检索已验证，BUG-1026 报告引用待收敛 |
+| Phase 4 | Coding Agent | 分支上真实改代码、测试迭代收敛、Diff + HITL 审批 | ✅ E2E 验证通过：BUG-1024 闭环+合并（2026-09-09） |
+| Phase 5 | Multi-Agent | Requirement/Review Agent 编排 + 返工循环 | ✅ E2E 验证通过：REQ-1025 闭环+合并（2026-09-10） |
+| Phase 6 | 平台化 | Memory、可观测性、Guardrail、LLM 重试已交付；评估/断点恢复/部署治理计划中 | 🟡 核心五项完成（53 测试全绿），Memory/HITL 已在真实 run 中生效 |
 
 ## 环境事实（随时更新）
 
@@ -57,8 +57,8 @@ README 的定义：加入 `run_test`、`git_diff`，跑通「Agent → Tool → 
 ### 验收标准
 
 1. ✅ `cd backend && pytest` 全绿（20 passed，不依赖真实 LLM key）。
-2. ⏳ 打开 BUG-1024 → 让 AI 处理 → 前端能实时看到每步工具调用与 Observation —— **阻塞：`.env` 仍是占位 key**，SSE 通道已实测可用。
-3. ⏳ Agent 在分析中能调用 `git_log`/`run_test` 并把测试结果（1 passed, 1 xfailed）写进根因分析 —— 同上，工具层已单测验证（真实跑出 `1 passed, 1 xfailed`）。
+2. ✅ 打开 BUG-1024 → 让 AI 处理 → 前端能实时看到每步工具调用与 Observation（SSE 通道实测，真实 run 51s 内 11 次 LLM + 工具调用全程推送）。
+3. ✅ Agent 能调用 `git_log`/`run_test` 并把测试结果写进根因分析（真实 run 的 trace 中 git/run_test 调用可见，测试结果进入报告）。
 4. ✅ `AGENT_PHASE=1` 时 run_test/git 工具对模型不可见（有单测锁定）。
 
 ---
@@ -105,9 +105,9 @@ Agent 在独立分支上真实修改代码：改 → 测 → 失败分析 → �
 
 ### 验收标准
 
-1. ⏳ BUG-1024 一键跑通：Agent 定位 → 改 `payment_consumer.py` → 测试由 1 xfailed 变 2 passed → 生成 Diff → 等待审批 —— FakeLLM 版已在单测中完整验证，**待真实 key E2E**。
-2. ✅ 审批前后靶场 main 分支零污染（单测断言主 checkout 未被改动；worktree 隔离）。
-3. ⏳ 多次失败后仍能收敛 —— 依赖真实模型行为，E2E 观察。
+1. ✅ BUG-1024 一键跑通：Agent 定位 → 改 `payment_consumer.py` → 移除 xfail → 自主补回归测试 → 测试 3 passed → 生成 Diff → needs_review → **HITL 批准合并进 main**（真实 LLM，51s / 11 次 LLM 调用 / 37936+3624 tokens，2026-09-09）。
+2. ✅ 审批前后靶场 main 分支零污染（worktree 隔离；合并仅在批准后发生）。
+3. ✅ 迭代收敛（真实 run 中 run_test↔write_file 自主循环后测试全绿）。
 
 ---
 
@@ -128,8 +128,8 @@ Agent 在独立分支上真实修改代码：改 → 测 → 失败分析 → �
 
 ### 验收标准
 
-1. ⏳ REQ-1025 真实跑通多 Agent 协作 —— FakeLLM 版已验证，待真实 key E2E。
-2. ⏳ Review Agent 对真实 diff 提出具体意见并驱动返工 —— 同上。
+1. ✅ REQ-1025 真实跑通多 Agent 协作：Requirement（验收标准）→ Coding（171s 交付取消订单，diff 限 order_service/main/test 三文件）→ Review → needs_review → **HITL 批准合并**（真实 LLM，24 次调用 / 201756+9549 tokens，2026-09-10）。
+2. ✅ Review Agent 对真实 diff 出具意见：第一轮 request_changes 驱动返工（返工启动后死于 trace 超长 bug，已修复并回归）；第二轮直接 approve —— 两种裁决路径都实测过。
 
 ---
 
