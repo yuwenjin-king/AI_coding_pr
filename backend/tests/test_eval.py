@@ -25,11 +25,17 @@ def test_score_run_all_pass():
 
 
 def test_score_run_reports_failures():
-    scenario = Scenario(ticket_code="T-1", name="t", min_phase=4, expect_diff_files=["order_service.py"])
+    scenario = Scenario(ticket_code="T-1", name="t", min_phase=4, expect_status=["needs_review"], expect_diff_files=["order_service.py"])
     run = _run(status="failed", diff_md="unrelated")
     results = score_run(scenario, run)
     statuses = {c.name: c.passed for c in results}
     assert statuses["终态状态"] is False
+    # diff expectations only scored for runs actually up for review
+    assert not any("Diff" in c.name for c in results)
+
+    run_review = _run(status="needs_review", diff_md="unrelated")
+    statuses = {c.name: c.passed for c in score_run(scenario, run_review)}
+    assert statuses["终态状态"] is True
     assert statuses["Diff 包含 'order_service.py'"] is False
 
 

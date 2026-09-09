@@ -25,15 +25,15 @@ def score_run(scenario: Scenario, run: Any) -> list[CheckResult]:
     status = getattr(run, "status", None)
     check(
         "终态状态",
-        status == scenario.expect_status,
-        f"期望 {scenario.expect_status}，实际 {status}",
+        status in scenario.expect_status,
+        f"期望 {'/'.join(scenario.expect_status)}，实际 {status}",
     )
 
     report = getattr(run, "report_md", None) or ""
     for needle in scenario.expect_report_contains:
         check(f"报告包含 {needle!r}", needle in report, "命中" if needle in report else "未命中")
 
-    if scenario.expect_status == "needs_review":
+    if status == "needs_review":  # diff/test expectations only apply to coding runs up for review
         diff = getattr(run, "diff_md", None) or ""
         for fragment in scenario.expect_diff_files:
             hit = fragment in diff

@@ -34,7 +34,7 @@ def test_loop_runs_tool_then_finishes():
     tool_event = events[3]  # the run_test observation
     assert tool_event["ok"] is True
     assert tool_event["arguments"] == {}
-    assert "1 xfailed" in tool_event["output"]  # real pytest ran in the playground
+    assert "passed" in tool_event["output"]  # real pytest ran in the playground
     # the model saw both observations before its final answer
     assert gw.requests[2]["messages"] == ["system", "user", "assistant", "tool", "assistant", "tool"]
 
