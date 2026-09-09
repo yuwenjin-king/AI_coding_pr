@@ -94,6 +94,23 @@ export default function TicketDetail() {
     }
   };
 
+  const hitl = async (decision: "approve" | "reject") => {
+    if (!run) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const updated = await api<AgentRun>(`/api/runs/${run.id}/hitl`, {
+        method: "POST",
+        body: JSON.stringify({ decision }),
+      });
+      setRun(updated);
+    } catch (e) {
+      setError(String((e as Error).message || e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const plan = useMemo(() => {
     if (!run?.plan_json) return [];
     try {
@@ -164,6 +181,24 @@ export default function TicketDetail() {
               <pre className="report">{run.report_md}</pre>
             </>
           )}
+          {run.mode === "coding" && run.branch && (
+            <p className="muted">
+              分支 <code>{run.branch}</code>
+              {run.workspace ? " · 隔离工作区待审批" : " · 工作区已清理"}
+            </p>
+          )}
+          {run.test_summary && (
+            <>
+              <h3>Tests</h3>
+              <pre className="observation">{run.test_summary}</pre>
+            </>
+          )}
+          {run.diff_md && (
+            <>
+              <h3>代码 Diff</h3>
+              <pre className="diff-view">{run.diff_md}</pre>
+            </>
+          )}
           <h3>Modified Files</h3>
           {suggestedFiles.length ? (
             <ul>
@@ -172,7 +207,7 @@ export default function TicketDetail() {
               ))}
             </ul>
           ) : (
-            <p className="muted">Phase 2 不改代码，仅建议路径（从报告中提取）。</p>
+            <p className="muted">分析模式不改代码，仅建议路径（从报告中提取）。</p>
           )}
           <h3>运行日志（思考 → 行动 → 观察）</h3>
           <ol className="trace">
@@ -207,17 +242,33 @@ export default function TicketDetail() {
             ))}
             {active && <li className="trace-item pending">等待下一步…</li>}
           </ol>
-          <div className="actions">
-            <button disabled title="Phase 4 可用">
-              查看代码 Diff
-            </button>
-            <button disabled title="Phase 4/6 Human Review">
-              批准
-            </button>
-            <button disabled title="Phase 4/6 Human Review">
-              拒绝
-            </button>
-          </div>
+          {run.status === "needs_review" ? (
+            <div className="review-box">
+              <p>
+                <strong>等待人工审批</strong> —— 批准将合并 <code>{run.branch}</code> 到主分支；拒绝将丢弃工作区。
+              </p>
+              <div className="actions">
+                <button className="approve" disabled={busy} onClick={() => hitl("approve")}>
+                  批准并合并
+                </button>
+                <button className="reject" disabled={busy} onClick={() => hitl("reject")}>
+                  拒绝并丢弃
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="actions">
+              <button disabled title={run.diff_md ? "Diff 见上方" : "Phase 4 可用"}>
+                查看代码 Diff
+              </button>
+              <button disabled title="needs_review 状态时可用">
+                批准
+              </button>
+              <button disabled title="needs_review 状态时可用">
+                拒绝
+              </button>
+            </div>
+          )}
         </section>
       )}
     </main>

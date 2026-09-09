@@ -9,8 +9,8 @@
 | --- | --- | --- | --- |
 | Phase 1 | 单 Agent 分析 | 工单工作台 + 只读工具 + 分析报告（不改代码） | ✅ 已完成 |
 | Phase 2 | Tool Agent | git/run_test 真实工具、通用 Agent Loop、SSE 实时观测 | 🟡 代码完成，待真实 key 端到端 |
-| Phase 3 | RAG Agent | Qdrant + Embedding、历史工单/文档检索进入上下文 | ⬜ 计划 |
-| Phase 4 | Coding Agent | 分支上真实改代码、测试迭代收敛、Diff + HITL 审批 | ⬜ 计划 |
+| Phase 3 | RAG Agent | Qdrant + Embedding、历史工单/文档检索进入上下文 | 🟡 代码完成，待真实 key 入库与端到端 |
+| Phase 4 | Coding Agent | 分支上真实改代码、测试迭代收敛、Diff + HITL 审批 | 🟡 代码完成（31 测试全绿），待真实 key 端到端 |
 | Phase 5 | Multi-Agent | Orchestrator 调度 Requirement/Coding/Test/Review | ⬜ 计划 |
 | Phase 6 | 平台化 | Memory、可观测性、评估、部署治理 | ⬜ 计划 |
 
@@ -70,21 +70,22 @@ README 的定义：加入 `run_test`、`git_diff`，跑通「Agent → Tool → 
 
 ### 任务
 
-- [ ] docker compose `--profile rag` 启 Qdrant；`qdrant-client` 入 requirements
-- [ ] Embedding：OpenAI 兼容 embeddings 接口（可配本地备选）
-- [ ] 入库流水线：`knowledge/seed/*.md` + 历史工单（tickets 表）切块 → 向量化 → upsert
-- [ ] 检索工具 `search_document` / `search_ticket` 从占位改为真实检索（top-k + 分数）
-- [ ] 可选进阶：Hybrid Search（BM25 + 向量）、Rerank
-- [ ] 触发方式：工单启动时自动检索 + Agent 主动调用两种都支持
+- [x] docker compose `--profile rag` 启 Qdrant；`qdrant-client` 入 requirements
+- [x] Embedding：OpenAI 兼容 embeddings 接口（DashScope text-embedding-v4，gateway.embed 批量分片）
+- [x] 入库流水线：`python -m app.knowledge.ingest`（knowledge/seed/*.md + tickets 表切块 → 向量化 → upsert）
+- [x] 检索工具 `search_document` / `search_ticket` 从占位改为真实检索（top-k + 分数 + 来源）
+- [ ] 可选进阶：Hybrid Search（BM25 + 向量）、Rerank（暂缓，向量检索够用）
+- [x] 触发方式：工单启动时自动检索注入（top-3）+ Agent 主动调用两种都支持
+- [x] LLM 配置：`LLM_API_KEY/LLM_BASE_URL/LLM_MODEL` 为标准命名（兼容旧 `OPENAI_*`），qwen 模型自动使用 DashScope endpoint
 
 ### 验收标准
 
-1. BUG-1026（库存扣减）运行时，Agent 能检索到 BUG-387 的「Redis/MySQL 并发不一致」经验并在报告中引用。
-2. 检索工具返回带来源与分数，报告中可追溯。
+1. ⏳ BUG-1026（库存扣减）运行时，Agent 能检索到 BUG-387 的「Redis/MySQL 并发不一致」经验并在报告中引用 —— 代码与单测就绪，**阻塞：真实 key 入库**。
+2. ✅ 检索工具返回带来源与分数，报告中可追溯。
 
 ---
 
-## Phase 4：Coding Agent（计划）
+## Phase 4：Coding Agent（代码完成，待端到端）
 
 ### 目标
 
@@ -92,19 +93,20 @@ Agent 在独立分支上真实修改代码：改 → 测 → 失败分析 → �
 
 ### 任务
 
-- [ ] 运行前准备：`git worktree`/分支隔离（`agent/BUG-1024-runN`），失败可一键丢弃
-- [ ] 开放 `write_file`（仅限工作区内、限定后缀、diff 尺寸上限）
-- [ ] 修复循环：run_test 失败 → 读输出 → 改代码 → 再测，最多 N 轮，trace 记录每轮
-- [ ] 修 BUG-1024 后把靶场 xfail 测试改为通过（去掉 xfail），新增回归测试
-- [ ] 产出物结构化：修改文件列表、完整 diff、测试结果、置信度 → run 进入 `needs_review`
-- [ ] HITL：批准 = merge 回主分支（或留 PR 说明）；拒绝 = 删除工作区
-- [ ] 前端：Diff 视图（语法高亮）+ 批准/拒绝按钮启用
+- [x] 运行前准备：`git worktree` + 分支隔离（`agent/<工单号>-run<N>`，`.agent-workspaces/`），拒绝可一键丢弃
+- [x] 开放 `write_file`（仅限工作区内、后缀白名单、64KB 上限；phase<4 调用即 blocked）
+- [x] 修复循环：agent loop 内 run_test ↔ write_file 自主迭代（coding 模式步数 +12）
+- [x] run 结束系统自动：提交 agent 分支 → 复跑测试 → 采集 diff/test_summary → `needs_review`
+- [x] HITL 落地：批准 = merge 回主分支（主工作区脏则 409 提示）+ 工单置 resolved；拒绝 = 删工作区/分支 + 工单回 open
+- [x] 前端：Diff/测试输出面板、needs_review 审批盒（批准并合并 / 拒绝并丢弃）
+- [x] 数据模型：agent_runs 新增 mode/branch/workspace/diff_md/test_summary（启动时自动 ALTER 迁移）
+- [x] 测试：worktree 生命周期、写沙箱门控、coding 闭环到 needs_review、批准合并、拒绝丢弃（tmp git 仓库隔离，不碰真实仓库）
 
 ### 验收标准
 
-1. BUG-1024 一键跑通：Agent 定位 → 改 `payment_consumer.py` → 测试由 1 xfailed 变 2 passed → 生成 Diff → 等待审批。
-2. 审批前后靶场 main 分支零污染（改动只存在于 agent 分支）。
-3. 多次失败后仍能收敛（体现自主性），或步数耗尽时给出失败分析而非静默。
+1. ⏳ BUG-1024 一键跑通：Agent 定位 → 改 `payment_consumer.py` → 测试由 1 xfailed 变 2 passed → 生成 Diff → 等待审批 —— FakeLLM 版已在单测中完整验证，**待真实 key E2E**。
+2. ✅ 审批前后靶场 main 分支零污染（单测断言主 checkout 未被改动；worktree 隔离）。
+3. ⏳ 多次失败后仍能收敛 —— 依赖真实模型行为，E2E 观察。
 
 ---
 

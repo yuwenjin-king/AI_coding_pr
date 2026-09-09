@@ -12,7 +12,6 @@ from app.config import settings
 from app.database import SessionLocal, get_db
 from app.models import AgentRun, Project, Ticket
 from app.runtime import RunStatus
-from app.runtime.hitl import can_deploy
 from app.schemas import AgentRunOut, HitlDecision, TicketCreate, TicketDetail, TicketOut
 
 router = APIRouter()
@@ -111,7 +110,10 @@ async def run_events(run_id: int):
                 if not run:
                     yield 'event: error\ndata: {"message": "run not found"}\n\n'
                     return
-                sig = f"{run.status}|{len(run.trace_json or '')}|{run.report_md or ''}|{run.error or ''}"
+                sig = (
+                    f"{run.status}|{len(run.trace_json or '')}|{run.report_md or ''}"
+                    f"|{run.error or ''}|{len(run.diff_md or '')}"
+                )
                 if sig != last_sig:
                     last_sig = sig
                     yield f"data: {AgentRunOut.model_validate(run).model_dump_json()}\n\n"
@@ -136,14 +138,18 @@ def hitl_decide(run_id: int, body: HitlDecision, db: Session = Depends(get_db)):
         raise HTTPException(404, "run not found")
     if body.decision not in {"approve", "reject"}:
         raise HTTPException(400, "decision must be approve or reject")
-    # Phase 1: record only; deploy still blocked
-    note = f"HITL {body.decision}: {body.comment or ''}".strip()
-    extra = (run.report_md or "") + f"\n\n---\n{note}\n"
-    run.report_md = extra
-    if body.decision == "approve" and can_deploy(hitl_status="approved"):
-        run.status = RunStatus.succeeded.value
-    elif body.decision == "reject":
-        run.status = RunStatus.cancelled.value
-    db.commit()
+
+    if run.status == RunStatus.needs_review.value:
+        from app.agents.orchestrator import approve_run, reject_run
+
+        action = approve_run if body.decision == "approve" else reject_run
+        ok, message = action(db, run)
+        if not ok:
+            raise HTTPException(409, message)
+    else:
+        note = f"HITL {body.decision}: {body.comment or ''}".strip()
+        run.report_md = (run.report_md or "") + f"\n\n---\n{note}\n"
+        db.commit()
+
     db.refresh(run)
     return run

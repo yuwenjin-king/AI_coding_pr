@@ -20,11 +20,31 @@ app.include_router(router, prefix="/api")
 @app.on_event("startup")
 def on_startup():
     Base.metadata.create_all(bind=engine)
+    _ensure_schema(engine)
     db = SessionLocal()
     try:
         seed_if_empty(db)
     finally:
         db.close()
+
+
+def _ensure_schema(engine) -> None:
+    """Hand-rolled mini-migration: add columns introduced after first deploy."""
+    from sqlalchemy import inspect, text
+
+    inspector = inspect(engine)
+    columns = {c["name"] for c in inspector.get_columns("agent_runs")}
+    migrations = {
+        "mode": "VARCHAR(16) DEFAULT 'analysis'",
+        "branch": "VARCHAR(128)",
+        "workspace": "VARCHAR(512)",
+        "diff_md": "TEXT",
+        "test_summary": "TEXT",
+    }
+    with engine.begin() as conn:
+        for column, ddl in migrations.items():
+            if column not in columns:
+                conn.execute(text(f"ALTER TABLE agent_runs ADD COLUMN {column} {ddl}"))
 
 
 @app.get("/api/health")

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import subprocess
 
-from app.config import settings
+from app.runtime.workspace import current_shopai_path
 from app.tools.registry import ToolResult, registry
 
 _GIT_TIMEOUT = 15
@@ -14,7 +14,7 @@ _MAX_OUTPUT = 8000
 def _git(args: list[str], tool_name: str) -> ToolResult:
     try:
         proc = subprocess.run(
-            ["git", "-C", str(settings.shopai_path), *args],
+            ["git", "-C", str(current_shopai_path()), *args],
             capture_output=True,
             text=True,
             timeout=_GIT_TIMEOUT,

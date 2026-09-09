@@ -22,7 +22,9 @@ class FakeGateway:
         self.requests = []
 
     def chat(self, messages, tools=None, tool_choice=None):
-        self.requests.append({"messages": [m["role"] for m in messages], "tools": tools})
+        self.requests.append(
+            {"messages": [m["role"] for m in messages], "tools": tools, "raw": [dict(m) for m in messages]}
+        )
         if not self.responses:
             raise AssertionError("FakeGateway exhausted")
         return self.responses.pop(0), {"model": "fake", "latency_ms": 1, "usage": None}

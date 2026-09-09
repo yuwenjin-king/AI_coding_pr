@@ -30,9 +30,14 @@ class AgentRunOut(BaseModel):
     id: int
     ticket_id: int
     status: str
+    mode: str = "analysis"
     plan_json: str | None = None
     report_md: str | None = None
     trace_json: str | None = None
+    branch: str | None = None
+    workspace: str | None = None
+    diff_md: str | None = None
+    test_summary: str | None = None
     error: str | None = None
     created_at: datetime
     updated_at: datetime | None = None

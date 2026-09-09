@@ -6,6 +6,7 @@ import subprocess
 import sys
 
 from app.config import settings
+from app.runtime.workspace import current_shopai_path
 from app.tools.registry import ToolResult, registry
 
 _MAX_OUTPUT = 10000
@@ -20,7 +21,7 @@ def _tool_run_test(args: dict) -> ToolResult:
     try:
         proc = subprocess.run(
             cmd,
-            cwd=str(settings.shopai_path),
+            cwd=str(current_shopai_path()),
             capture_output=True,
             text=True,
             timeout=settings.test_timeout_seconds,
